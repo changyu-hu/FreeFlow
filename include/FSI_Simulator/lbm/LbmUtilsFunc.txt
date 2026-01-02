@@ -1,0 +1,453 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025 Changyu Hu
+//
+// Commons Clause addition:
+// This software is provided for non-commercial use only. See LICENSE file for details.
+
+#pragma once
+
+#include "FSI_Simulator/common/CudaCommon.cuh"
+
+#include "FSI_Simulator/lbm/LbmConstants.hpp"
+
+namespace fsi
+{
+
+	namespace lbm
+	{
+
+		namespace LbmD3Q27
+		{
+			extern __constant__ float c_w[Q];
+		}
+
+		class LbmUtilsFuncGpu3D
+		{
+		public:
+			__device__ void mlCalDistributionD3Q27AtIndex(
+				float rho, float ux, float uy, float uz,
+				float pixx, float piyy, float pizz,
+				float pixy, float piyz, float pixz,
+				int i, float &f_out);
+			__device__ void mlCalDistributionD3Q27All(
+				float rho, float ux, float uy, float uz,
+				float pixx, float piyy, float pizz,
+				float pixy, float piyz, float pixz,
+				float *f_out);
+			__device__ void mlGetPIAfterCollision(float R, float U, float V, float W, float Fx, float Fy, float Fz, float omega,
+												  float &pixx, float &piyy, float &pizz, float &pixy, float &piyz, float &pixz);
+
+		private:
+		};
+
+		inline __device__ void LbmUtilsFuncGpu3D::mlCalDistributionD3Q27AtIndex(
+			float rho, float ux, float uy, float uz,
+			float pixx, float piyy, float pizz,
+			float pixy, float piyz, float pixz,
+			int i, float &f_out)
+		{
+
+			float A0 = rho;
+
+			float Ax = ux * A0;
+			float Ay = uy * A0;
+			float Az = uz * A0;
+
+			float Axx = rho * pixx;
+			float Ayy = rho * piyy;
+			float Azz = rho * pizz;
+			float Axy = rho * pixy;
+			float Axz = rho * pixz;
+			float Ayz = rho * piyz;
+
+			float Axxy = -2 * rho * uy * ux * ux + 2 * Axy * ux + Axx * uy;
+			float Axyy = -2 * rho * ux * uy * uy + 2 * Axy * uy + Ayy * ux;
+			float Axxz = -2 * rho * uz * ux * ux + 2 * Axz * ux + Axx * uz;
+			float Axzz = -2 * rho * ux * uz * uz + 2 * Axz * uz + Azz * ux;
+			float Ayyz = -2 * rho * uz * uy * uy + 2 * Ayz * uy + Ayy * uz;
+			float Ayzz = -2 * rho * uy * uz * uz + 2 * Ayz * uz + Azz * uy;
+			float Axyz = Axz * uy + Ayz * ux + Axy * uz - 2 * rho * ux * uy * uz;
+
+			float W0 = LbmD3Q27::c_w[0];  // weight dist 0 population (0, 0, 0)
+			float W1 = LbmD3Q27::c_w[1];  // weight dist 1 populations (1, 0, 0)
+			float W2 = LbmD3Q27::c_w[7];  // weight dist 2 populations (1, 1, 0)
+			float W3 = LbmD3Q27::c_w[19]; // weight dist 3 populations (1, 1, 1)
+
+			float Ax_t3 = Ax * 3;
+			float Ay_t3 = Ay * 3;
+			float Az_t3 = Az * 3;
+
+			float Axx_t3 = 3 * Axx;
+			float Ayy_t3 = 3 * Ayy;
+			float Azz_t3 = 3 * Azz;
+			float Axy_t9 = 9 * Axy;
+			float Axz_t9 = 9 * Axz;
+			float Ayz_t9 = 9 * Ayz;
+
+			float Axxy_t9 = Axxy * 9;
+			float Axyy_t9 = Axyy * 9;
+			float Axzz_t9 = Axzz * 9;
+			float Ayzz_t9 = Ayzz * 9;
+			float Axxz_t9 = Axxz * 9;
+			float Ayyz_t9 = Ayyz * 9;
+			float Axyz_t27 = Axyz * 27;
+
+			float com0 = A0 - (Axx_t3) * 0.5f - (Ayy_t3) * 0.5f - (Azz_t3) * 0.5f;
+
+			switch (i)
+			{
+			case 0:
+				f_out = W0 * (com0);
+				break;
+			case 1:
+				f_out = W1 * (com0 + Ax_t3 + 1.5f * Axx_t3 - (Axyy_t9) * 0.5f - (Axzz_t9) * 0.5f);
+				break;
+			case 2:
+				f_out = W1 * (com0 - Ax_t3 + 1.5f * Axx_t3 + (Axyy_t9) * 0.5f + (Axzz_t9) * 0.5f);
+				break;
+			case 3:
+				f_out = W1 * (com0 + Ay_t3 + 1.5f * Ayy_t3 - (Axxy_t9) * 0.5f - (Ayzz_t9) * 0.5f);
+				break;
+			case 4:
+				f_out = W1 * (com0 - Ay_t3 + 1.5f * Ayy_t3 + (Ayzz_t9) * 0.5f + (Axxy_t9) * 0.5f);
+				break;
+			case 5:
+				f_out = W1 * (com0 + Az_t3 + 1.5f * Azz_t3 - (Axxz_t9) * 0.5f - (Ayyz_t9) * 0.5f);
+				break;
+			case 6:
+				f_out = W1 * (com0 - Az_t3 + 1.5f * Azz_t3 + (Axxz_t9) * 0.5f + (Ayyz_t9) * 0.5f);
+				break;
+
+			case 7:
+				f_out = W2 * (A0 + Ax_t3 + Ay_t3 + Axx_t3 + Ayy_t3 - (Azz_t3) * 0.5f + Axy_t9 + Axxy_t9 + Axyy_t9 - (Axzz_t9) * 0.5f - (Ayzz_t9) * 0.5f);
+				break;
+			case 8:
+				f_out = W2 * (A0 - Ax_t3 - Ay_t3 + Axx_t3 + Ayy_t3 - (Azz_t3) * 0.5f + Axy_t9 - Axxy_t9 - Axyy_t9 + (Axzz_t9) * 0.5f + (Ayzz_t9) * 0.5f);
+				break;
+			case 9:
+				f_out = W2 * (A0 + Ax_t3 + Az_t3 + Axx_t3 - (Ayy_t3) * 0.5f + Azz_t3 + Axz_t9 + Axxz_t9 - (Axyy_t9) * 0.5f + Axzz_t9 - (Ayyz_t9) * 0.5f);
+				break;
+			case 10:
+				f_out = W2 * (A0 - Ax_t3 - Az_t3 + Axx_t3 - (Ayy_t3) * 0.5f + Azz_t3 + Axz_t9 - Axxz_t9 + (Axyy_t9) * 0.5f - Axzz_t9 + (Ayyz_t9) * 0.5f);
+				break;
+			case 11:
+				f_out = W2 * (A0 + Ay_t3 + Az_t3 - (Axx_t3) * 0.5f + Ayy_t3 + Azz_t3 + Ayz_t9 - (Axxy_t9) * 0.5f - (Axxz_t9) * 0.5f + Ayyz_t9 + Ayzz_t9);
+				break;
+			case 12:
+				f_out = W2 * (A0 - Ay_t3 - Az_t3 - (Axx_t3) * 0.5f + Ayy_t3 + Azz_t3 + Ayz_t9 + (Axxy_t9) * 0.5f + (Axxz_t9) * 0.5f - Ayyz_t9 - Ayzz_t9);
+				break;
+			case 13:
+				f_out = W2 * (A0 + Ax_t3 - Ay_t3 + Axx_t3 + Ayy_t3 - (Azz_t3) * 0.5f - Axy_t9 - Axxy_t9 + Axyy_t9 - (Axzz_t9) * 0.5f + (Ayzz_t9) * 0.5f);
+				break;
+			case 14:
+				f_out = W2 * (A0 - Ax_t3 + Ay_t3 + Axx_t3 + Ayy_t3 - (Azz_t3) * 0.5f - Axy_t9 + Axxy_t9 - Axyy_t9 + (Axzz_t9) * 0.5f - (Ayzz_t9) * 0.5f);
+				break;
+			case 15:
+				f_out = W2 * (A0 + Ax_t3 - Az_t3 + Axx_t3 - (Ayy_t3) * 0.5f + Azz_t3 - Axz_t9 - Axxz_t9 - (Axyy_t9) * 0.5f + Axzz_t9 + (Ayyz_t9) * 0.5f);
+				break;
+			case 16:
+				f_out = W2 * (A0 - Ax_t3 + Az_t3 + Axx_t3 - (Ayy_t3) * 0.5f + Azz_t3 - Axz_t9 + Axxz_t9 + (Axyy_t9) * 0.5f - Axzz_t9 - (Ayyz_t9) * 0.5f);
+				break;
+			case 17:
+				f_out = W2 * (A0 + Ay_t3 - Az_t3 - (Axx_t3) * 0.5f + Ayy_t3 + Azz_t3 - Ayz_t9 - (Axxy_t9) * 0.5f + (Axxz_t9) * 0.5f - Ayyz_t9 + Ayzz_t9);
+				break;
+			case 18:
+				f_out = W2 * (A0 - Ay_t3 + Az_t3 - (Axx_t3) * 0.5f + Ayy_t3 + Azz_t3 - Ayz_t9 + (Axxy_t9) * 0.5f - (Axxz_t9) * 0.5f + Ayyz_t9 - Ayzz_t9);
+				break;
+
+			case 19:
+				f_out = W3 * (A0 + Ax_t3 + Axx_t3 + Axxy_t9 + Axxz_t9 + Axy_t9 + Axyy_t9 + Axyz_t27 + Axz_t9 + Axzz_t9 + Ay_t3 + Ayy_t3 + Ayyz_t9 + Ayz_t9 + Ayzz_t9 + Az_t3 + Azz_t3);
+				break;
+			case 20:
+				f_out = W3 * (A0 - Ax_t3 + Axx_t3 - Axxy_t9 - Axxz_t9 + Axy_t9 - Axyy_t9 - Axyz_t27 + Axz_t9 - Axzz_t9 - Ay_t3 + Ayy_t3 - Ayyz_t9 + Ayz_t9 - Ayzz_t9 - Az_t3 + Azz_t3);
+				break;
+			case 21:
+				f_out = W3 * (A0 + Ax_t3 + Axx_t3 + Axxy_t9 - Axxz_t9 + Axy_t9 + Axyy_t9 - Axyz_t27 - Axz_t9 + Axzz_t9 + Ay_t3 + Ayy_t3 - Ayyz_t9 - Ayz_t9 + Ayzz_t9 - Az_t3 + Azz_t3);
+				break;
+			case 22:
+				f_out = W3 * (A0 - Ax_t3 + Axx_t3 - Axxy_t9 + Axxz_t9 + Axy_t9 - Axyy_t9 + Axyz_t27 - Axz_t9 - Axzz_t9 - Ay_t3 + Ayy_t3 + Ayyz_t9 - Ayz_t9 - Ayzz_t9 + Az_t3 + Azz_t3);
+				break;
+			case 23:
+				f_out = W3 * (A0 + Ax_t3 + Axx_t3 - Axxy_t9 + Axxz_t9 - Axy_t9 + Axyy_t9 - Axyz_t27 + Axz_t9 + Axzz_t9 - Ay_t3 + Ayy_t3 + Ayyz_t9 - Ayz_t9 - Ayzz_t9 + Az_t3 + Azz_t3);
+				break;
+			case 24:
+				f_out = W3 * (A0 - Ax_t3 + Axx_t3 + Axxy_t9 - Axxz_t9 - Axy_t9 - Axyy_t9 + Axyz_t27 + Axz_t9 - Axzz_t9 + Ay_t3 + Ayy_t3 - Ayyz_t9 - Ayz_t9 + Ayzz_t9 - Az_t3 + Azz_t3);
+				break;
+			case 25:
+				f_out = W3 * (A0 - Ax_t3 + Axx_t3 + Axxy_t9 + Axxz_t9 - Axy_t9 - Axyy_t9 - Axyz_t27 - Axz_t9 - Axzz_t9 + Ay_t3 + Ayy_t3 + Ayyz_t9 + Ayz_t9 + Ayzz_t9 + Az_t3 + Azz_t3);
+				break;
+			case 26:
+				f_out = W3 * (A0 + Ax_t3 + Axx_t3 - Axxy_t9 - Axxz_t9 - Axy_t9 + Axyy_t9 + Axyz_t27 - Axz_t9 + Axzz_t9 - Ay_t3 + Ayy_t3 - Ayyz_t9 + Ayz_t9 - Ayzz_t9 - Az_t3 + Azz_t3);
+				break;
+			}
+
+			// if (f_out < 0.0) f_out = 0.0;
+		}
+
+		inline __device__ void LbmUtilsFuncGpu3D::mlCalDistributionD3Q27All(
+			float rho, float ux, float uy, float uz,
+			float pixx, float piyy, float pizz,
+			float pixy, float piyz, float pixz,
+			float *f_out)
+		{
+			float A0 = rho;
+
+			float Ax = ux * A0;
+			float Ay = uy * A0;
+			float Az = uz * A0;
+
+			float Axx = rho * pixx;
+			float Ayy = rho * piyy;
+			float Azz = rho * pizz;
+			float Axy = rho * pixy;
+			float Axz = rho * pixz;
+			float Ayz = rho * piyz;
+
+			float Axxy = -2 * rho * uy * ux * ux + 2 * Axy * ux + Axx * uy;
+			float Axyy = -2 * rho * ux * uy * uy + 2 * Axy * uy + Ayy * ux;
+			float Axxz = -2 * rho * uz * ux * ux + 2 * Axz * ux + Axx * uz;
+			float Axzz = -2 * rho * ux * uz * uz + 2 * Axz * uz + Azz * ux;
+			float Ayyz = -2 * rho * uz * uy * uy + 2 * Ayz * uy + Ayy * uz;
+			float Ayzz = -2 * rho * uy * uz * uz + 2 * Ayz * uz + Azz * uy;
+			float Axyz = Axz * uy + Ayz * ux + Axy * uz - 2 * rho * ux * uy * uz;
+
+			float W0 = LbmD3Q27::c_w[0];  // weight dist 0 population (0, 0, 0)
+			float W1 = LbmD3Q27::c_w[1];  // weight dist 1 populations (1, 0, 0)
+			float W2 = LbmD3Q27::c_w[7];  // weight dist 2 populations (1, 1, 0)
+			float W3 = LbmD3Q27::c_w[19]; // weight dist 3 populations (1, 1, 1)
+
+			float Ax_t3 = Ax * 3;
+			float Ay_t3 = Ay * 3;
+			float Az_t3 = Az * 3;
+
+			float Axx_t3 = 3 * Axx;
+			float Ayy_t3 = 3 * Ayy;
+			float Azz_t3 = 3 * Azz;
+			float Axy_t9 = 9 * Axy;
+			float Axz_t9 = 9 * Axz;
+			float Ayz_t9 = 9 * Ayz;
+
+			float Axxy_t9 = Axxy * 9;
+			float Axyy_t9 = Axyy * 9;
+			float Axzz_t9 = Axzz * 9;
+			float Ayzz_t9 = Ayzz * 9;
+			float Axxz_t9 = Axxz * 9;
+			float Ayyz_t9 = Ayyz * 9;
+			float Axyz_t27 = Axyz * 27;
+
+			float com0 = A0 - (Axx_t3) * 0.5f - (Ayy_t3) * 0.5f - (Azz_t3) * 0.5f;
+
+			f_out[0] = W0 * (com0);
+			f_out[1] = W1 * (com0 + Ax_t3 + 1.5f * Axx_t3 - (Axyy_t9) * 0.5f - (Axzz_t9) * 0.5f);
+			f_out[2] = W1 * (com0 - Ax_t3 + 1.5f * Axx_t3 + (Axyy_t9) * 0.5f + (Axzz_t9) * 0.5f);
+			f_out[3] = W1 * (com0 + Ay_t3 + 1.5f * Ayy_t3 - (Axxy_t9) * 0.5f - (Ayzz_t9) * 0.5f);
+			f_out[4] = W1 * (com0 - Ay_t3 + 1.5f * Ayy_t3 + (Ayzz_t9) * 0.5f + (Axxy_t9) * 0.5f);
+			f_out[5] = W1 * (com0 + Az_t3 + 1.5f * Azz_t3 - (Axxz_t9) * 0.5f - (Ayyz_t9) * 0.5f);
+			f_out[6] = W1 * (com0 - Az_t3 + 1.5f * Azz_t3 + (Axxz_t9) * 0.5f + (Ayyz_t9) * 0.5f);
+			f_out[7] = W2 * (A0 + Ax_t3 + Ay_t3 + Axx_t3 + Ayy_t3 - (Azz_t3) * 0.5f + Axy_t9 + Axxy_t9 + Axyy_t9 - (Axzz_t9) * 0.5f - (Ayzz_t9) * 0.5f);
+			f_out[8] = W2 * (A0 - Ax_t3 - Ay_t3 + Axx_t3 + Ayy_t3 - (Azz_t3) * 0.5f + Axy_t9 - Axxy_t9 - Axyy_t9 + (Axzz_t9) * 0.5f + (Ayzz_t9) * 0.5f);
+			f_out[9] = W2 * (A0 + Ax_t3 + Az_t3 + Axx_t3 - (Ayy_t3) * 0.5f + Azz_t3 + Axz_t9 + Axxz_t9 - (Axyy_t9) * 0.5f + Axzz_t9 - (Ayyz_t9) * 0.5f);
+			f_out[10] = W2 * (A0 - Ax_t3 - Az_t3 + Axx_t3 - (Ayy_t3) * 0.5f + Azz_t3 + Axz_t9 - Axxz_t9 + (Axyy_t9) * 0.5f - Axzz_t9 + (Ayyz_t9) * 0.5f);
+			f_out[11] = W2 * (A0 + Ay_t3 + Az_t3 - (Axx_t3) * 0.5f + Ayy_t3 + Azz_t3 + Ayz_t9 - (Axxy_t9) * 0.5f - (Axxz_t9) * 0.5f + Ayyz_t9 + Ayzz_t9);
+			f_out[12] = W2 * (A0 - Ay_t3 - Az_t3 - (Axx_t3) * 0.5f + Ayy_t3 + Azz_t3 + Ayz_t9 + (Axxy_t9) * 0.5f + (Axxz_t9) * 0.5f - Ayyz_t9 - Ayzz_t9);
+			f_out[13] = W2 * (A0 + Ax_t3 - Ay_t3 + Axx_t3 + Ayy_t3 - (Azz_t3) * 0.5f - Axy_t9 - Axxy_t9 + Axyy_t9 - (Axzz_t9) * 0.5f + (Ayzz_t9) * 0.5f);
+			f_out[14] = W2 * (A0 - Ax_t3 + Ay_t3 + Axx_t3 + Ayy_t3 - (Azz_t3) * 0.5f - Axy_t9 + Axxy_t9 - Axyy_t9 + (Axzz_t9) * 0.5f - (Ayzz_t9) * 0.5f);
+			f_out[15] = W2 * (A0 + Ax_t3 - Az_t3 + Axx_t3 - (Ayy_t3) * 0.5f + Azz_t3 - Axz_t9 - Axxz_t9 - (Axyy_t9) * 0.5f + Axzz_t9 + (Ayyz_t9) * 0.5f);
+			f_out[16] = W2 * (A0 - Ax_t3 + Az_t3 + Axx_t3 - (Ayy_t3) * 0.5f + Azz_t3 - Axz_t9 + Axxz_t9 + (Axyy_t9) * 0.5f - Axzz_t9 - (Ayyz_t9) * 0.5f);
+			f_out[17] = W2 * (A0 + Ay_t3 - Az_t3 - (Axx_t3) * 0.5f + Ayy_t3 + Azz_t3 - Ayz_t9 - (Axxy_t9) * 0.5f + (Axxz_t9) * 0.5f - Ayyz_t9 + Ayzz_t9);
+			f_out[18] = W2 * (A0 - Ay_t3 + Az_t3 - (Axx_t3) * 0.5f + Ayy_t3 + Azz_t3 - Ayz_t9 + (Axxy_t9) * 0.5f - (Axxz_t9) * 0.5f + Ayyz_t9 - Ayzz_t9);
+			f_out[19] = W3 * (A0 + Ax_t3 + Axx_t3 + Axxy_t9 + Axxz_t9 + Axy_t9 + Axyy_t9 + Axyz_t27 + Axz_t9 + Axzz_t9 + Ay_t3 + Ayy_t3 + Ayyz_t9 + Ayz_t9 + Ayzz_t9 + Az_t3 + Azz_t3);
+			f_out[20] = W3 * (A0 - Ax_t3 + Axx_t3 - Axxy_t9 - Axxz_t9 + Axy_t9 - Axyy_t9 - Axyz_t27 + Axz_t9 - Axzz_t9 - Ay_t3 + Ayy_t3 - Ayyz_t9 + Ayz_t9 - Ayzz_t9 - Az_t3 + Azz_t3);
+			f_out[21] = W3 * (A0 + Ax_t3 + Axx_t3 + Axxy_t9 - Axxz_t9 + Axy_t9 + Axyy_t9 - Axyz_t27 - Axz_t9 + Axzz_t9 + Ay_t3 + Ayy_t3 - Ayyz_t9 - Ayz_t9 + Ayzz_t9 - Az_t3 + Azz_t3);
+			f_out[22] = W3 * (A0 - Ax_t3 + Axx_t3 - Axxy_t9 + Axxz_t9 + Axy_t9 - Axyy_t9 + Axyz_t27 - Axz_t9 - Axzz_t9 - Ay_t3 + Ayy_t3 + Ayyz_t9 - Ayz_t9 - Ayzz_t9 + Az_t3 + Azz_t3);
+			f_out[23] = W3 * (A0 + Ax_t3 + Axx_t3 - Axxy_t9 + Axxz_t9 - Axy_t9 + Axyy_t9 - Axyz_t27 + Axz_t9 + Axzz_t9 - Ay_t3 + Ayy_t3 + Ayyz_t9 - Ayz_t9 - Ayzz_t9 + Az_t3 + Azz_t3);
+			f_out[24] = W3 * (A0 - Ax_t3 + Axx_t3 + Axxy_t9 - Axxz_t9 - Axy_t9 - Axyy_t9 + Axyz_t27 + Axz_t9 - Axzz_t9 + Ay_t3 + Ayy_t3 - Ayyz_t9 - Ayz_t9 + Ayzz_t9 - Az_t3 + Azz_t3);
+			f_out[25] = W3 * (A0 - Ax_t3 + Axx_t3 + Axxy_t9 + Axxz_t9 - Axy_t9 - Axyy_t9 - Axyz_t27 - Axz_t9 - Axzz_t9 + Ay_t3 + Ayy_t3 + Ayyz_t9 + Ayz_t9 + Ayzz_t9 + Az_t3 + Azz_t3);
+			f_out[26] = W3 * (A0 + Ax_t3 + Axx_t3 - Axxy_t9 - Axxz_t9 - Axy_t9 + Axyy_t9 + Axyz_t27 - Axz_t9 + Axzz_t9 - Ay_t3 + Ayy_t3 - Ayyz_t9 + Ayz_t9 - Ayzz_t9 - Az_t3 + Azz_t3);
+		}
+
+		inline __device__ void LbmUtilsFuncGpu3D::mlGetPIAfterCollision(float R, float U, float V, float W, float Fx, float Fy, float Fz, float omega,
+																		float &pixx, float &piyy, float &pizz, float &pixy, float &piyz, float &pixz)
+		{
+
+			float pixx_part = (2 * pixx - piyy - pizz) / 3.0; //(2 * f1) / 3 + (2 * f2) / 3 - f3 / 3 - f4 / 3 - f5 / 3 - f6 / 3 + f7 / 3 + f8 / 3 + f9 / 3 + f10 / 3 - (2 * f11) / 3 - (2 * f12) / 3 + f13 / 3 + f14 / 3 + f15 / 3 + f16 / 3 - (2 * f17) / 3 - (2 * f18) / 3;
+			float piyy_part = (2 * piyy - pixx - pizz) / 3.0; // -f1 / 3 - f2 / 3 + (2 * f3) / 3 + (2 * f4) / 3 - f5 / 3 - f6 / 3 + f7 / 3 + f8 / 3 - (2 * f9) / 3 - (2 * f10) / 3 + f11 / 3 + f12 / 3 + f13 / 3 + f14 / 3 - (2 * f15) / 3 - (2 * f16) / 3 + f17 / 3 + f18 / 3;
+			float pizz_part = (2 * pizz - pixx - piyy) / 3.0; //-f1 / 3 - f2 / 3 - f3 / 3 - f4 / 3 + (2 * f5) / 3 + (2 * f6) / 3 - (2 * f7) / 3 - (2 * f8) / 3 + f9 / 3 + f10 / 3 + f11 / 3 + f12 / 3 - (2 * f13) / 3 - (2 * f14) / 3 + f15 / 3 + f16 / 3 + f17 / 3 + f18 / 3;
+			float RU2 = R * U * U;
+			float RV2 = R * V * V;
+			float RW2 = R * W * W;
+			float RUVW2 = (1 * RU2) / 3 + (1 * RV2) / 3 + (1 * RW2) / 3;
+			pixx =
+				R / 3 + pixx_part * (1 - omega) + RUVW2 + (2 * RU2 * omega) / 3 - (1 * RV2 * omega) / 3 - (1 * RW2 * omega) / 3 + Fx * U + (1 - omega) / 3.0f * (2 * Fx * U - Fy * V - Fz * W);
+
+			piyy =
+				R / 3 + piyy_part * (1 - omega) + RUVW2 - (1 * RU2 * omega) / 3 + (2 * RV2 * omega) / 3 - (1 * RW2 * omega) / 3 + Fy * V + (1 - omega) / 3.0f * (2 * Fy * V - Fx * U - Fz * W);
+
+			pizz =
+				R / 3 + pizz_part * (1 - omega) + RUVW2 - (1 * RU2 * omega) / 3 - (1 * RV2 * omega) / 3 + (2 * RW2 * omega) / 3 + Fz * W + (1 - omega) / 3.0f * (2 * Fz * W - Fx * U - Fy * V);
+
+			pixy = pixy - pixy * omega + U * V * R * omega + (1 - 0.5f * omega) * (Fy * U) + (1 - 0.5f * omega) * (Fx * V);
+			pixz = pixz - pixz * omega + U * W * R * omega + (1 - 0.5f * omega) * (Fz * U) + (1 - 0.5f * omega) * (Fx * W);
+			piyz = piyz - piyz * omega + V * W * R * omega + (1 - 0.5f * omega) * (Fz * V) + (1 - 0.5f * omega) * (Fy * W);
+		}
+
+		class LbmUtilsFuncGpuf
+		{
+		public:
+			__device__ glm::vec3 bilinerVel1(float x1, float x2, float x3, glm::vec3 &f1, glm::vec3 &f2);
+			__device__ glm::vec3 bilinerVel2(glm::vec3 &p0, glm::vec3 &p1, glm::vec3 &p2, glm::vec3 &p3,
+											 glm::vec3 &p4, glm::vec3 &f0, glm::vec3 &f1, glm::vec3 &f2, glm::vec3 &f3);
+		};
+
+		inline __device__ glm::vec3 LbmUtilsFuncGpuf::bilinerVel1(float x1, float x2, float x3, glm::vec3 &f1, glm::vec3 &f2)
+		{
+			float ux = fabs(x3 - x1) / (fabs(x2 - x1)) * f2[0] + fabs(x3 - x2) / (fabs(x2 - x1)) * f1[0];
+			float uy = fabs(x3 - x1) / (fabs(x2 - x1)) * f2[1] + fabs(x3 - x2) / (fabs(x2 - x1)) * f1[1];
+			float uz = fabs(x3 - x1) / (fabs(x2 - x1)) * f2[2] + fabs(x3 - x2) / (fabs(x2 - x1)) * f1[2];
+			return glm::vec3(ux, uy, uz);
+		}
+
+		inline __device__ glm::vec3 LbmUtilsFuncGpuf::bilinerVel2(glm::vec3 &p0, glm::vec3 &p1, glm::vec3 &p2, glm::vec3 &p3, glm::vec3 &p4,
+																  glm::vec3 &f0, glm::vec3 &f1, glm::vec3 &f2, glm::vec3 &f3)
+		{
+			glm::vec3 x1 = bilinerVel1(p0[0], p1[0], p4[0], f0, f1);
+			glm::vec3 x2 = bilinerVel1(p2[0], p3[0], p4[0], f2, f3);
+			glm::vec3 x3 = bilinerVel1(p0[1], p2[1], p4[1], x1, x2);
+			return x3;
+		}
+
+		namespace LbmD2Q9
+		{
+			extern __constant__ float c_w[Q];
+		}
+
+		class LbmUtilsFuncGpu2D
+		{
+		public:
+			__device__ void mlCalDistributionD2Q9AtIndex(
+				float rho, float ux, float uy, float pixx, float pixy, float piyy, int i, float &f_out);
+			__device__ void mlCalDistributionD2Q9ALL(
+				float rho, float ux, float uy, float pixx, float pixy, float piyy, float *f_out);
+			__device__ void mlGetPIAfterCollision(float R, float U, float V, float Fx, float Fy, float omega,
+												  float &pixx,
+												  float &piyy,
+												  float &pixy);
+
+		private:
+		};
+
+		inline __device__ void LbmUtilsFuncGpu2D::mlCalDistributionD2Q9AtIndex(
+			float rho, float ux, float uy, float pixx, float pixy, float piyy, int i, float &f_out)
+		{
+			float A0 = rho;
+			float Ax = ux * A0;
+			float Ay = uy * A0;
+
+			float Axx = rho * pixx;
+			float Ayy = rho * piyy;
+			float Axy = rho * pixy;
+
+			float Axxy = -2 * rho * uy * ux * ux + 2 * Axy * ux + Axx * uy;
+			float Axyy = -2 * rho * ux * uy * uy + 2 * Axy * uy + Ayy * ux;
+
+			float Axxyy = 0.0; // Axxyy_0 + Axxyy_1;
+
+			switch (i)
+			{
+			case 0:
+				f_out = LbmD2Q9::c_w[i] * (A0 - (3 * Axx) / 2 + (9 * Axxyy) / 4 - (3 * Ayy) / 2);
+				break;
+			case 1:
+				f_out = LbmD2Q9::c_w[i] * (A0 + 3 * Ax + 3 * Axx - (9 * Axyy) / 2 - (9 * Axxyy) / 2 - (3 * Ayy) / 2);
+				break;
+
+			case 2:
+				f_out = LbmD2Q9::c_w[i] * (A0 - (3 * Axx) / 2 - (9 * Axxy) / 2 + 3 * Ay - (9 * Axxyy) / 2 + 3 * Ayy);
+				break;
+
+			case 3:
+				f_out = LbmD2Q9::c_w[i] * (A0 - 3 * Ax + 3 * Axx + (9 * Axyy) / 2 - (9 * Axxyy) / 2 - (3 * Ayy) / 2);
+				break;
+
+			case 4:
+				f_out = LbmD2Q9::c_w[i] * (A0 - (3 * Axx) / 2 + (9 * Axxy) / 2 - 3 * Ay - (9 * Axxyy) / 2 + 3 * Ayy);
+				break;
+
+			case 5:
+				f_out = LbmD2Q9::c_w[i] * (A0 + 3 * Ax + 3 * Axx + 9 * Axy + 9 * Axxy + 9 * Axyy + 3 * Ay + 9 * Axxyy + 3 * Ayy);
+				break;
+
+			case 6:
+				f_out = LbmD2Q9::c_w[i] * (A0 - 3 * Ax + 3 * Axx - 9 * Axy + 9 * Axxy - 9 * Axyy + 3 * Ay + 9 * Axxyy + 3 * Ayy);
+				break;
+
+			case 7:
+				f_out = LbmD2Q9::c_w[i] * (A0 - 3 * Ax + 3 * Axx + 9 * Axy - 9 * Axxy - 9 * Axyy - 3 * Ay + 9 * Axxyy + 3 * Ayy);
+				break;
+
+			case 8:
+				f_out = LbmD2Q9::c_w[i] * (A0 + 3 * Ax + 3 * Axx - 9 * Axy - 9 * Axxy + 9 * Axyy - 3 * Ay + 9 * Axxyy + 3 * Ayy);
+				break;
+			}
+
+			if (f_out < 0.0)
+				f_out = 0.0;
+		}
+
+		inline __device__ void LbmUtilsFuncGpu2D::mlCalDistributionD2Q9ALL(
+			float rho, float ux, float uy, float pixx, float pixy, float piyy, float *f_out)
+		{
+			float A0 = rho;
+			float Ax = ux * A0;
+			float Ay = uy * A0;
+
+			float Axx = rho * pixx;
+			float Ayy = rho * piyy;
+			float Axy = rho * pixy;
+
+			float Axxy = -2 * rho * uy * ux * ux + 2 * Axy * ux + Axx * uy;
+			float Axyy = -2 * rho * ux * uy * uy + 2 * Axy * uy + Ayy * ux;
+
+			float Axxyy = 0.0; // Axxyy_0 + Axxyy_1;
+
+			f_out[0] = LbmD2Q9::c_w[0] * (A0 - (3 * Axx) / 2 + (9 * Axxyy) / 4 - (3 * Ayy) / 2);
+			f_out[1] = LbmD2Q9::c_w[1] * (A0 + 3 * Ax + 3 * Axx - (9 * Axyy) / 2 - (9 * Axxyy) / 2 - (3 * Ayy) / 2);
+			f_out[2] = LbmD2Q9::c_w[2] * (A0 - (3 * Axx) / 2 - (9 * Axxy) / 2 + 3 * Ay - (9 * Axxyy) / 2 + 3 * Ayy);
+			f_out[3] = LbmD2Q9::c_w[3] * (A0 - 3 * Ax + 3 * Axx + (9 * Axyy) / 2 - (9 * Axxyy) / 2 - (3 * Ayy) / 2);
+			f_out[4] = LbmD2Q9::c_w[4] * (A0 - (3 * Axx) / 2 + (9 * Axxy) / 2 - 3 * Ay - (9 * Axxyy) / 2 + 3 * Ayy);
+			f_out[5] = LbmD2Q9::c_w[5] * (A0 + 3 * Ax + 3 * Axx + 9 * Axy + 9 * Axxy + 9 * Axyy + 3 * Ay + 9 * Axxyy + 3 * Ayy);
+			f_out[6] = LbmD2Q9::c_w[6] * (A0 - 3 * Ax + 3 * Axx - 9 * Axy + 9 * Axxy - 9 * Axyy + 3 * Ay + 9 * Axxyy + 3 * Ayy);
+			f_out[7] = LbmD2Q9::c_w[7] * (A0 - 3 * Ax + 3 * Axx + 9 * Axy - 9 * Axxy - 9 * Axyy - 3 * Ay + 9 * Axxyy + 3 * Ayy);
+			f_out[8] = LbmD2Q9::c_w[8] * (A0 + 3 * Ax + 3 * Axx - 9 * Axy - 9 * Axxy + 9 * Axyy - 3 * Ay + 9 * Axxyy + 3 * Ayy);
+		}
+
+		inline __device__ void LbmUtilsFuncGpu2D::mlGetPIAfterCollision(float R, float U, float V, float Fx, float Fy, float omega, float &pixx, float &piyy, float &pixy)
+		{
+			/*float pixx_part = (pixx - piyy) / 2;
+			float piyy_part = (piyy - pixx) / 2;
+			float RU2 = R * U * U;
+			float RV2 = R * V * V;
+			pixx = R / 3 + pixx_part * (1 - omega)
+				+ RU2 / 2
+				+ RV2 / 2
+				+ RU2 * omega / 2
+				- RV2 * omega / 2 + Fx * U;
+			piyy = R / 3 + piyy_part * (1 - omega)
+				+ RU2 / 2
+				+ RV2 / 2
+				- RU2 * omega / 2
+				+ RV2 * omega / 2 + Fy * V;
+			pixy = pixy - pixy * omega + U * V * R * omega + (Fy * U) / 2 + (Fx * V) / 2;*/
+
+			float pixx_part = (pixx - piyy) / 2;
+			float piyy_part = (piyy - pixx) / 2;
+			float RU2 = R * U * U;
+			float RV2 = R * V * V;
+			pixx = R / 3 + pixx_part * (1 - omega) + RU2 / 2 + RV2 / 2 + RU2 * omega / 2 - RV2 * omega / 2 + Fx * U + 0.5f * (1 - omega) * (Fx * U - Fy * V);
+			piyy = R / 3 + piyy_part * (1 - omega) + RU2 / 2 + RV2 / 2 - RU2 * omega / 2 + RV2 * omega / 2 + Fy * V + 0.5f * (1 - omega) * (Fy * V - Fx * U);
+			pixy = pixy - pixy * omega + U * V * R * omega + (1 - 0.5f * omega) * (Fy * U + Fx * V);
+		}
+
+	} // namespace lbm
+
+} // namespace fsi

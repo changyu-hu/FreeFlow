@@ -1,0 +1,21 @@
+{
+  "$schema": "https://raw.githubusercontent.com/microsoft/vcpkg-tool/main/docs/vcpkg.schema.json",
+  "name": "fsi-simulator",
+  "version-string": "0.1.0",
+  "dependencies": [
+    "eigen3",
+    "pybind11",
+    "spdlog",
+    "nlohmann-json",
+    "tinyobjloader",
+    "vtk",
+    "glm",
+    {
+      "name": "suitesparse-cholmod",
+      "features": [
+        "cuda",
+        "openmp"
+      ]
+    }
+  ]
+}

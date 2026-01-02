@@ -1,0 +1,32 @@
+{
+    "experiment_name": "chasing_lbs_2d_energy_saving_3.0",
+    "model_name": "fish2d",
+    "task_type": "chasing",
+    "env_type": "LBS",
+    "max_episodes": 1000,
+    "total_time": 15,
+    "interval": 0.2,
+    "batch_size": 512,
+    "update_itr": 2,
+    "explore_steps": 0,
+    "AUTO_ENTROPY": true,
+    "DETERMINISTIC": false,
+    "hidden_dim": 1024,
+    "action_size": 12,
+    "dim": 2,
+    "r_smooth": 0.02,
+    "r_reg": 0.01,
+    "r_energy": 3.0,
+    "config_template_path": "config_template_2d.json",
+    "scale": [0.8, 0.7],
+    "rotate": 180,
+    "action_range": {
+        "translate": 0.1,
+        "rotate": 0.4
+    },
+    "omega": 0.3,
+    "stiffness": 0.1,
+    "vin": 0.1,
+    "save_fluid": false,
+    "save_solid": true
+}
