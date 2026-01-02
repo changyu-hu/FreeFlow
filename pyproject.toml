@@ -1,0 +1,14 @@
+[build-system]
+requires = ["scikit-build-core"]
+build-backend = "scikit_build_core.build"
+
+[project]
+name = "fsi_simulator"
+version = "0.1.0"
+
+[tool.scikit-build]
+cmake.source-dir = "."
+
+build-dir = "build"
+
+install.components = ["python_module"]

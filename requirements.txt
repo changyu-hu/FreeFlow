@@ -1,0 +1,7 @@
+taichi
+trimesh
+scipy
+matplotlib
+torch
+gym
+filelock

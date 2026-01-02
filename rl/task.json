@@ -1,0 +1,32 @@
+{
+    "experiment_name": "swimming_forward_lbs",
+    "model_name": "torus",
+    "task_type": "forward",
+    "env_type": "LBS",
+    "max_episodes": 1000,
+    "total_time": 15,
+    "interval": 0.2,
+    "batch_size": 512,
+    "update_itr": 2,
+    "explore_steps": 0,
+    "AUTO_ENTROPY": true,
+    "DETERMINISTIC": false,
+    "hidden_dim": 1024,
+    "action_size": 24,
+    "dim": 3,
+    "r_smooth": 0.02,
+    "r_reg": 0.01,
+    "r_energy": 0.0,
+    "config_template_path": "config_template_3d.json",
+    "scale": [1.0, 1.0, 1.0],
+    "rotate": [0, 90, 0],
+    "action_range": {
+        "translate": 0.1,
+        "rotate": 0.4
+    },
+    "omega": 0.3,
+    "stiffness": 10,
+    "vin": 0.1,
+    "save_fluid": true,
+    "save_solid": true
+}

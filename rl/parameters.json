@@ -1,0 +1,158 @@
+{
+    "clownfish": {
+        "action_size": 24,
+        "scale": [
+            1.0,
+            1.0,
+            1.0
+        ],
+        "rotate": [
+            0,
+            90,
+            0
+        ]
+    },
+    "eel": {
+        "action_size": 30,
+        "scale": [
+            0.3,
+            0.3,
+            0.3
+        ],
+        "rotate": [
+            0,
+            0,
+            0
+        ]
+    },
+    "octopus": {
+        "action_size": 42,
+        "scale": [
+            1,
+            1,
+            1
+        ],
+        "rotate": [
+            0,
+            90,
+            0
+        ]
+    },
+    "leaf": {
+        "action_size": 48,
+        "scale": [
+            1,
+            1,
+            1
+        ],
+        "rotate": [
+            0,
+            0,
+            90
+        ]
+    },
+    "turtle": {
+        "action_size": 42,
+        "scale": [
+            1.7,
+            1.7,
+            1.7
+        ],
+        "rotate": [
+            0,
+            0,
+            0
+        ]
+    },
+    "jellyfish": {
+        "action_size": 30,
+        "scale": [
+            1,
+            1,
+            1
+        ],
+        "rotate": [
+            0,
+            0,
+            0
+        ]
+    },
+    "torus": {
+        "action_size": 24,
+        "scale": [
+            1.0,
+            1.0,
+            1.0
+        ],
+        "rotate": [
+            0,
+            90,
+            0
+        ]
+    },
+    "eight": {
+        "action_size": 42,
+        "scale": [
+            0.7,
+            0.7,
+            0.7
+        ],
+        "rotate": [
+            0,
+            0,
+            90
+        ]
+    },
+    "spiral": {
+        "action_size": 24,
+        "scale": [
+            1.0,
+            1.0,
+            1.0
+        ],
+        "rotate": [
+            0,
+            -90,
+            0
+        ]
+    },
+    "trumpet": {
+        "action_size": 54,
+        "scale": [
+            1.0,
+            1.0,
+            1.0
+        ],
+        "rotate": [
+            0,
+            90,
+            0
+        ]
+    },
+    "tube": {
+        "action_size": 24,
+        "scale": [
+            1.0,
+            1.0,
+            1.0
+        ],
+        "rotate": [
+            0,
+            90,
+            0
+        ]
+    },
+    "Enneper": {
+        "action_size": 36,
+        "scale": [
+            1.0,
+            1.0,
+            1.0
+        ],
+        "rotate": [
+            0,
+            0,
+            -90
+        ]
+    }
+}
